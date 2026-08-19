@@ -35,19 +35,46 @@ public sealed class StorageService
     {
         if (string.IsNullOrWhiteSpace(text)) throw new InvalidOperationException("消息不能为空。");
         var message = new ChatMessage(Guid.NewGuid(), CleanName(sender), DateTimeOffset.UtcNow, text.Trim()[..Math.Min(text.Trim().Length, 4000)], null);
-        await _gate.WaitAsync(); try { _messages.Add(message); await SaveAsync(); } finally { _gate.Release(); }
+        await _gate.WaitAsync();
+        try
+        {
+            _messages.Add(message);
+            await SaveAsync();
+        }
+        finally
+        {
+            _gate.Release();
+        }
         return message;
     }
 
     public async Task<CreateUploadResponse> CreateUploadAsync(UploadRequest request)
     {
-        if (request.Length <= 0) throw new InvalidOperationException("文件不能为空。");
+        if (request.Length <= 0)
+        {
+            throw new InvalidOperationException("文件不能为空。");
+        }
+
         var drive = new DriveInfo(Path.GetPathRoot(_root)!);
-        if (drive.AvailableFreeSpace < Math.Min(request.Length, 1024L * 1024 * 1024)) throw new IOException("磁盘可用空间不足，无法开始上传。");
+        if (drive.AvailableFreeSpace < Math.Min(request.Length, 1024L * 1024 * 1024))
+        {
+            throw new IOException("磁盘可用空间不足，无法开始上传。");
+        }
+
         const int chunkSize = 4 * 1024 * 1024;
         var count = checked((int)((request.Length + chunkSize - 1) / chunkSize));
         var state = new UploadState(Guid.NewGuid(), Path.GetFileName(request.Name), request.ContentType ?? "application/octet-stream", request.Length, CleanName(request.Sender), request.Sha256, chunkSize, count, new bool[count], DateTimeOffset.UtcNow);
-        await _gate.WaitAsync(); try { _uploadStates[state.Id] = state; await WriteStateAsync(state); } finally { _gate.Release(); }
+        await _gate.WaitAsync();
+        try
+        {
+            _uploadStates[state.Id] = state;
+            await WriteStateAsync(state);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+
         return new(state.Id, chunkSize, count);
     }
 
@@ -60,13 +87,23 @@ public sealed class StorageService
         try
         {
             var state = GetUpload(id);
-            if (index < 0 || index >= state.ChunkCount) throw new InvalidOperationException("分块编号无效。");
+            if (index < 0 || index >= state.ChunkCount)
+            {
+                throw new InvalidOperationException("分块编号无效。");
+            }
+
             var expected = index == state.ChunkCount - 1 ? state.Length - (long)index * state.ChunkSize : state.ChunkSize;
-            if (length != expected) throw new InvalidOperationException("分块大小不正确。");
+            if (length != expected)
+            {
+                throw new InvalidOperationException("分块大小不正确。");
+            }
+
             await using var file = new FileStream(PartPath(id), FileMode.OpenOrCreate, FileAccess.Write, FileShare.None, 81920, FileOptions.Asynchronous);
-            file.SetLength(state.Length); file.Seek((long)index * state.ChunkSize, SeekOrigin.Begin);
+            file.SetLength(state.Length); 
+            file.Seek((long)index * state.ChunkSize, SeekOrigin.Begin);
             await body.CopyToAsync(file);
-            state.Received[index] = true; await WriteStateAsync(state);
+            state.Received[index] = true; 
+            await WriteStateAsync(state);
             return state.Received.All(x => x);
         }
         finally { _gate.Release(); }

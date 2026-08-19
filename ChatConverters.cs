@@ -10,8 +10,8 @@ public sealed class SenderAlignmentConverter : IValueConverter
     public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
     {
         return string.Equals(value as string, "Desktop", StringComparison.Ordinal)
-            ? HorizontalAlignment.Right
-            : HorizontalAlignment.Left;
+            ? System.Windows.HorizontalAlignment.Right
+            : System.Windows.HorizontalAlignment.Left;
     }
 
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
